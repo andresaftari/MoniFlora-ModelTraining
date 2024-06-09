@@ -13,7 +13,7 @@ from imblearn.over_sampling import SMOTE
 app = Flask('moniflora')
 
 def initialize_firebase():
-    cred = credentials.Certificate('/home/andresaftari/moniflora/moniflora-7d3a3-firebase-adminsdk-xtibx-b38ec6e08d.json')
+    cred = credentials.Certificate('/Users/andresaftari/Development/Kuliah/skripsyit-training/moniflora-7d3a3-firebase-adminsdk-xtibx-b38ec6e08d.json')
     firebase_admin.initialize_app(cred, {
         'databaseURL': 'https://moniflora-7d3a3-default-rtdb.firebaseio.com/'
     })
@@ -32,12 +32,13 @@ def determine_label(value):
     
     if (22 <= temp <= 27 and 3500 <= light <= 5000 and 1500 <= ec <= 2000 and 35 <= moisture <= 50):
         return 0  # Optimal
-    elif ((20 <= temp < 22 or 27 <= temp <= 30) or 
+    elif ((20 <= temp < 22 or 27 < temp <= 30) or 
         (1500 <= light < 3500 or 5000 < light <= 6500) or 
         (950 <= ec < 1500 or 2000 < ec <= 3000) or 
-        (30 <= moisture < 35 or 50 < moisture <= 60)
-        ):
+        (30 <= moisture < 35 or 50 < moisture <= 60)):
         return 1  # Caution
+    elif temp < 10 or ec < 10 or moisture < 10:
+        return 2  # Extreme
     else:
         return 2  # Extreme
 
@@ -107,10 +108,10 @@ print(classification_report(y_test, y_pred))
 print('\n=========================== DEBUG ===========================')
 
 example_value = {
-    'temperature': 27.2,
-    'light': 1912,
-    'conductivity': 1201,
-    'moisture': 43
+    "temperature": 26,
+    "light": 4212,
+    "conductivity": 1912,
+    "moisture": 42
 }
 
 # Scale example_value and make a prediction
