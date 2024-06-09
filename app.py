@@ -1,7 +1,8 @@
 import firebase_admin
 from firebase_admin import credentials, db
-from flask import Flask, request, jsonify
+from flask import Flask, jsonify, request
 import numpy as np
+import os
 import pandas as pd
 import pickle
 from sklearn.model_selection import StratifiedKFold, cross_val_score, train_test_split
@@ -10,24 +11,21 @@ from sklearn.metrics import classification_report
 from sklearn.preprocessing import StandardScaler
 from imblearn.over_sampling import SMOTE
 
+
 # Init Flask
 app = Flask('moniflora')
 
 def initialize_firebase():
-    cred = credentials.Certificate('/Users/andresaftari/Development/Kuliah/MoniFlora-Training/moniflora-7d3a3-firebase-adminsdk-xtibx-b38ec6e08d.json')
+    cred = credentials.Certificate(os.environ.get('moniflora-7d3a3-firebase-adminsdk-xtibx-b38ec6e08d.json'))
     firebase_admin.initialize_app(cred, {
         'databaseURL': 'https://moniflora-7d3a3-default-rtdb.firebaseio.com/'
     })
+
 
 def get_dataset():
     ref = db.reference('sensor')
     return ref.get()
 
-def determine_label(value):
-    temp = value['temperature']
-    light = value['light']
-    ec = value['conductivity']
-    moisture = value['moisture']
     
 def determine_label(value):
     temp = value['temperature']
@@ -44,6 +42,7 @@ def determine_label(value):
         return 1  # Caution
     else:
         return 2  # Extreme
+
 
 def prepare_data(dataset):
     data = {
@@ -63,78 +62,82 @@ def prepare_data(dataset):
     
     return pd.DataFrame(data)
 
+
 def train_random_forest(X_train, y_train):
     forest = RandomForestClassifier(n_estimators=100, random_state=42)
     forest.fit(X_train, y_train)
     
     return forest
 
-# Load data
-initialize_firebase()
-dataset = get_dataset()
 
-# Prepare data
-data = prepare_data(dataset)
+def main():
+    # Load data
+    initialize_firebase()
+    dataset = get_dataset()
+
+    # Prepare data
+    data = prepare_data(dataset)
+        
+    X = np.array([data['temperature'], data['light'], data['conductivity'], data['moisture']]).T
+    y = np.array(data['label'])
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+
+    # Balance the dataset
+    smote = SMOTE(random_state=42)
+    X_train_balanced, y_train_balanced = smote.fit_resample(X_train, y_train)
+
+    # Initialize and fit scaler on the training data
+    scaler = StandardScaler()
+    X_train_scaled = scaler.fit_transform(X_train_balanced)
+    X_test_scaled = scaler.transform(X_test)
+
+    # Train Random Forest model
+    rf_model = train_random_forest(X_train_scaled, y_train_balanced)
+        
+    # Use 3-fold cross-validation with stratified splits
+    stratified_kfold = StratifiedKFold(n_splits=3)
+    validator = cross_val_score(rf_model, X_test_scaled, y_test, cv=stratified_kfold)
+    score = rf_model.score(X_test_scaled, y_test)
+        
+    print(f'Random Forest Score: {score}')
+    print(f'Random Forest Cross Validation Score: {validator}')
+        
+    y_pred = rf_model.predict(X_test_scaled)
+    print(classification_report(y_test, y_pred))
+
+    print('\n=========================== DEBUG ===========================')
+
+    example_value = {
+        'temperature': 27.2,
+        'light': 1912,
+        'conductivity': 1201,
+        'moisture': 43
+    }
+
+    # Scale example_value and make a prediction
+    example_features = np.array([[example_value['temperature'], example_value['light'], example_value['conductivity'], example_value['moisture']]])
+    example_scaled = scaler.transform(example_features)
+    example_prediction = rf_model.predict(example_scaled)
+    example_prediction_proba = rf_model.predict_proba(example_scaled)
+
+    print(f'Scaled example features: {example_scaled}')
+    print(f'Example prediction: {example_prediction}')
+    print(f'Example prediction probabilities: {example_prediction_proba}')
+
+    print('=========================== DEBUG ===========================\n')
+
+    # Save the model and scaler
+    pickle.dump(rf_model, open('myapp/rf_model.pkl', 'wb'))    
+    pickle.dump(scaler, open('myapp/scaler.pkl', 'wb'))
     
-X = np.array([data['temperature'], data['light'], data['conductivity'], data['moisture']]).T
-y = np.array(data['label'])
-
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
-
-# Balance the dataset
-smote = SMOTE(random_state=42)
-X_train_balanced, y_train_balanced = smote.fit_resample(X_train, y_train)
-
-# Initialize and fit scaler on the training data
-scaler = StandardScaler()
-X_train_scaled = scaler.fit_transform(X_train_balanced)
-X_test_scaled = scaler.transform(X_test)
-
-# Train Random Forest model
-rf_model = train_random_forest(X_train_scaled, y_train_balanced)
-    
-# Use 3-fold cross-validation with stratified splits
-stratified_kfold = StratifiedKFold(n_splits=3)
-validator = cross_val_score(rf_model, X_test_scaled, y_test, cv=stratified_kfold)
-score = rf_model.score(X_test_scaled, y_test)
-    
-print(f'Random Forest Score: {score}')
-print(f'Random Forest Cross Validation Score: {validator}')
-    
-y_pred = rf_model.predict(X_test_scaled)
-print(classification_report(y_test, y_pred))
-
-print('\n=========================== DEBUG ===========================')
-
-example_value = {
-    'temperature': 27.2,
-    'light': 1912,
-    'conductivity': 1201,
-    'moisture': 43
-}
-
-# Scale example_value and make a prediction
-example_features = np.array([[example_value['temperature'], example_value['light'], example_value['conductivity'], example_value['moisture']]])
-example_scaled = scaler.transform(example_features)
-example_prediction = rf_model.predict(example_scaled)
-example_prediction_proba = rf_model.predict_proba(example_scaled)
-
-print(f'Scaled example features: {example_scaled}')
-print(f'Example prediction: {example_prediction}')
-print(f'Example prediction probabilities: {example_prediction_proba}')
-
-print('=========================== DEBUG ===========================\n')
-
-# Save the model and scaler
-pickle.dump(rf_model, open('rf_model.pkl', 'wb'))    
-pickle.dump(scaler, open('scaler.pkl', 'wb'))
-
-# Load ML Model
-model = pickle.load(open('rf_model.pkl', 'rb'))
-scaler = pickle.load(open('scaler.pkl', 'rb'))
 
 @app.route('/predict', methods=['POST'])
 def serve_model():
+    # Load ML Model
+    model = pickle.load(open('rf_model.pkl', 'rb'))
+    scaler = pickle.load(open('scaler.pkl', 'rb'))
+    
     data = request.json
     features = np.array([
         [
@@ -145,7 +148,7 @@ def serve_model():
         ]
     ])
     
-    print(f"Received features: {features}")
+    print(f'Received features: {features}')
     
     # Apply the same scaling as during training
     features_scaled = scaler.transform(features)
@@ -176,4 +179,5 @@ def serve_model():
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    main()
+    app.run()
