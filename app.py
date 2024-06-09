@@ -2,7 +2,6 @@ import firebase_admin
 from firebase_admin import credentials, db
 from flask import Flask, jsonify, request
 import numpy as np
-import os
 import pandas as pd
 import pickle
 from sklearn.model_selection import StratifiedKFold, cross_val_score, train_test_split
@@ -11,12 +10,10 @@ from sklearn.metrics import classification_report
 from sklearn.preprocessing import StandardScaler
 from imblearn.over_sampling import SMOTE
 
-
-# Init Flask
 app = Flask('moniflora')
 
 def initialize_firebase():
-    cred = credentials.Certificate(os.environ.get('moniflora-7d3a3-firebase-adminsdk-xtibx-b38ec6e08d.json'))
+    cred = credentials.Certificate('/home/andresaftari/moniflora/moniflora-7d3a3-firebase-adminsdk-xtibx-b38ec6e08d.json')
     firebase_admin.initialize_app(cred, {
         'databaseURL': 'https://moniflora-7d3a3-default-rtdb.firebaseio.com/'
     })
@@ -26,7 +23,7 @@ def get_dataset():
     ref = db.reference('sensor')
     return ref.get()
 
-    
+
 def determine_label(value):
     temp = value['temperature']
     light = value['light']
@@ -38,7 +35,8 @@ def determine_label(value):
     elif ((20 <= temp < 22 or 27 <= temp <= 30) or 
         (1500 <= light < 3500 or 5000 < light <= 6500) or 
         (950 <= ec < 1500 or 2000 < ec <= 3000) or 
-        (30 <= moisture < 35 or 50 < moisture <= 60)):
+        (30 <= moisture < 35 or 50 < moisture <= 60)
+        ):
         return 1  # Caution
     else:
         return 2  # Extreme
@@ -59,125 +57,129 @@ def prepare_data(dataset):
         data['conductivity'].append(value['conductivity'])
         data['moisture'].append(value['moisture'])
         data['label'].append(determine_label(value))
-    
+
     return pd.DataFrame(data)
 
 
 def train_random_forest(X_train, y_train):
     forest = RandomForestClassifier(n_estimators=100, random_state=42)
     forest.fit(X_train, y_train)
-    
+
     return forest
 
 
-def main():
-    # Load data
-    initialize_firebase()
-    dataset = get_dataset()
 
-    # Prepare data
-    data = prepare_data(dataset)
-        
-    X = np.array([data['temperature'], data['light'], data['conductivity'], data['moisture']]).T
-    y = np.array(data['label'])
+# Load data
+initialize_firebase()
+dataset = get_dataset()
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+# Prepare data
+data = prepare_data(dataset)
 
-    # Balance the dataset
-    smote = SMOTE(random_state=42)
-    X_train_balanced, y_train_balanced = smote.fit_resample(X_train, y_train)
+X = np.array([data['temperature'], data['light'], data['conductivity'], data['moisture']]).T
+y = np.array(data['label'])
 
-    # Initialize and fit scaler on the training data
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train_balanced)
-    X_test_scaled = scaler.transform(X_test)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
 
-    # Train Random Forest model
-    rf_model = train_random_forest(X_train_scaled, y_train_balanced)
-        
-    # Use 3-fold cross-validation with stratified splits
-    stratified_kfold = StratifiedKFold(n_splits=3)
-    validator = cross_val_score(rf_model, X_test_scaled, y_test, cv=stratified_kfold)
-    score = rf_model.score(X_test_scaled, y_test)
-        
-    print(f'Random Forest Score: {score}')
-    print(f'Random Forest Cross Validation Score: {validator}')
-        
-    y_pred = rf_model.predict(X_test_scaled)
-    print(classification_report(y_test, y_pred))
+# Balance the dataset
+smote = SMOTE(random_state=42)
+X_train_balanced, y_train_balanced = smote.fit_resample(X_train, y_train)
 
-    print('\n=========================== DEBUG ===========================')
+# Initialize and fit scaler on the training data
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train_balanced)
+X_test_scaled = scaler.transform(X_test)
 
-    example_value = {
-        'temperature': 27.2,
-        'light': 1912,
-        'conductivity': 1201,
-        'moisture': 43
-    }
+# Train Random Forest model
+rf_model = train_random_forest(X_train_scaled, y_train_balanced)
 
-    # Scale example_value and make a prediction
-    example_features = np.array([[example_value['temperature'], example_value['light'], example_value['conductivity'], example_value['moisture']]])
-    example_scaled = scaler.transform(example_features)
-    example_prediction = rf_model.predict(example_scaled)
-    example_prediction_proba = rf_model.predict_proba(example_scaled)
+# Use 3-fold cross-validation with stratified splits
+stratified_kfold = StratifiedKFold(n_splits=3)
+validator = cross_val_score(rf_model, X_test_scaled, y_test, cv=stratified_kfold)
+score = rf_model.score(X_test_scaled, y_test)
 
-    print(f'Scaled example features: {example_scaled}')
-    print(f'Example prediction: {example_prediction}')
-    print(f'Example prediction probabilities: {example_prediction_proba}')
+print(f'Random Forest Score: {score}')
+print(f'Random Forest Cross Validation Score: {validator}')
 
-    print('=========================== DEBUG ===========================\n')
+y_pred = rf_model.predict(X_test_scaled)
+print(classification_report(y_test, y_pred))
 
-    # Save the model and scaler
-    pickle.dump(rf_model, open('myapp/rf_model.pkl', 'wb'))    
-    pickle.dump(scaler, open('myapp/scaler.pkl', 'wb'))
-    
+print('\n=========================== DEBUG ===========================')
+
+example_value = {
+    'temperature': 27.2,
+    'light': 1912,
+    'conductivity': 1201,
+    'moisture': 43
+}
+
+# Scale example_value and make a prediction
+example_features = np.array([[example_value['temperature'], example_value['light'], example_value['conductivity'], example_value['moisture']]])
+example_scaled = scaler.transform(example_features)
+example_prediction = rf_model.predict(example_scaled)
+example_prediction_proba = rf_model.predict_proba(example_scaled)
+
+print(f'Scaled example features: {example_scaled}')
+print(f'Example prediction: {example_prediction}')
+print(f'Example prediction probabilities: {example_prediction_proba}')
+
+print('=========================== DEBUG ===========================\n')
+
+# Save the model and scaler
+pickle.dump(rf_model, open('rf_model.pkl', 'wb'))
+pickle.dump(scaler, open('scaler.pkl', 'wb'))
+
+@app.route('/')
+def hello_world():
+    return 'Hello from Flask!'
+
+
+@app.route('/pred', methods=['GET'])
+def coba():
+    return 'Coba'
+
 
 @app.route('/predict', methods=['POST'])
 def serve_model():
     # Load ML Model
     model = pickle.load(open('rf_model.pkl', 'rb'))
     scaler = pickle.load(open('scaler.pkl', 'rb'))
-    
+
     data = request.json
     features = np.array([
         [
-            data['temperature'], 
-            data['light'], 
-            data['conductivity'], 
+            data['temperature'],
+            data['light'],
+            data['conductivity'],
             data['moisture']
         ]
     ])
-    
-    print(f'Received features: {features}')
-    
+
+    # print(f'Received features: {features}')
+
     # Apply the same scaling as during training
     features_scaled = scaler.transform(features)
-    print(f'Scaled features: {features_scaled}')
-    
+    # print(f'Scaled features: {features_scaled}')
+
     label_names = {
         0: 'Optimal',
         1: 'Caution',
         2: 'Extreme'
     }
-    
+
     pred = model.predict(features_scaled)
     pred_proba = model.predict_proba(features_scaled)
-    
+
     pred_label_index = int(pred[0])
     pred_label_name = label_names[pred_label_index]
-    
-    print('\n=========================== DEBUG ===========================')
-    print(f'Prediction: {pred_label_name} - Prediction index: {pred}')
-    print(f'Prediction probability: {pred_proba}')
-    print('=========================== DEBUG ===========================\n')
-    
+
+    # print('\n=========================== DEBUG ===========================')
+    # print(f'Prediction: {pred_label_name} - Prediction index: {pred}')
+    # print(f'Prediction probability: {pred_proba}')
+    # print('=========================== DEBUG ===========================\n')
+
     return jsonify({
         'prediction': pred_label_name,
         'prediction_index': pred_label_index,
         'probability': pred_proba[0].tolist()
     })
-
-
-if __name__ == "__main__":
-    main()
-    app.run()
