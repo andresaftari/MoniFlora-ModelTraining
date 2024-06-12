@@ -22,6 +22,12 @@ def initialize_firebase():
 def get_dataset():
     ref = db.reference('sensor')
     return ref.get()
+    # Fetch all records ordered by key and limit to 1000
+    # records = ref.order_by_key().get()
+    # limited_records = list(records.items())[:1000]
+    
+    # limited_records_dict = dict(limited_records)
+    # return limited_records_dict
 
 
 def determine_label(value):
@@ -30,17 +36,19 @@ def determine_label(value):
     ec = value['conductivity']
     moisture = value['moisture']
     
-    if (22 <= temp <= 27 and 3500 <= light <= 5000 and 1500 <= ec <= 2000 and 35 <= moisture <= 50):
+    if temp < 10 or ec < 10 or moisture < 30 or light < 100:
+        return 2  # Extreme
+
+    if (22 <= temp <= 27 and 3500 <= light <= 5700 and 1500 <= ec <= 2500 and 35 <= moisture <= 50):
         return 0  # Optimal
-    elif ((20 <= temp < 22 or 27 < temp <= 30) or 
-        (1500 <= light < 3500 or 5000 < light <= 6500) or 
-        (950 <= ec < 1500 or 2000 < ec <= 3000) or 
+
+    if ((20 <= temp < 22 or 27 <= temp <= 30) or
+        (1500 <= light < 3500 or 5700 < light <= 6500) or
+        (950 <= ec < 1500 or 2500 < ec <= 3000) or
         (30 <= moisture < 35 or 50 < moisture <= 60)):
         return 1  # Caution
-    elif temp < 10 or ec < 10 or moisture < 10:
-        return 2  # Extreme
-    else:
-        return 2  # Extreme
+
+    return 2  # Extreme
 
 
 def prepare_data(dataset):
@@ -67,7 +75,6 @@ def train_random_forest(X_train, y_train):
     forest.fit(X_train, y_train)
 
     return forest
-
 
 
 # Load data
@@ -108,10 +115,10 @@ print(classification_report(y_test, y_pred))
 print('\n=========================== DEBUG ===========================')
 
 example_value = {
-    "temperature": 26,
-    "light": 4212,
-    "conductivity": 1912,
-    "moisture": 42
+    "temperature": 30.2,
+    "light": 244,
+    "conductivity": 1242,
+    "moisture": 12
 }
 
 # Scale example_value and make a prediction
@@ -135,7 +142,7 @@ def hello_world():
     return 'Hello from Flask!'
 
 
-@app.route('/pred', methods=['GET'])
+@app.route('/predict', methods=['GET'])
 def coba():
     return 'Coba'
 
