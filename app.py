@@ -9,6 +9,8 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report
 from sklearn.preprocessing import StandardScaler
 from imblearn.over_sampling import SMOTE
+import matplotlib.pyplot as plt
+from collections import Counter
 
 app = Flask('moniflora')
 
@@ -21,13 +23,17 @@ def initialize_firebase():
 
 def get_dataset():
     ref = db.reference('sensor')
-    return ref.get()
-    # Fetch all records ordered by key and limit to 1000
-    # records = ref.order_by_key().get()
-    # limited_records = list(records.items())[:1000]
     
-    # limited_records_dict = dict(limited_records)
-    # return limited_records_dict
+    query = ref.order_by_child('light').start_at(600)
+    results = query.get()
+
+    if results:
+        print(f'Total dataset: {len(ref.get())}')
+        print(f'Selected dataset with light >= 600: {len(results)}')
+    else:
+        print('No records found with light >= 600')
+
+    return results
 
 
 def determine_label(value):
@@ -39,11 +45,11 @@ def determine_label(value):
     if temp < 10 or ec < 10 or moisture < 30 or light < 100:
         return 2  # Extreme
 
-    if (22 <= temp <= 27 and 3500 <= light <= 5700 and 1500 <= ec <= 2500 and 35 <= moisture <= 50):
+    if (22 <= temp <= 27 and 3500 <= light <= 5600 and 1500 <= ec <= 2500 and 35 <= moisture <= 50):
         return 0  # Optimal
 
     if ((20 <= temp < 22 or 27 <= temp <= 30) or
-        (1500 <= light < 3500 or 5700 < light <= 6500) or
+        (1500 <= light < 3500 or 5600 < light <= 6000) or
         (950 <= ec < 1500 or 2500 < ec <= 3000) or
         (30 <= moisture < 35 or 50 < moisture <= 60)):
         return 1  # Caution
@@ -87,11 +93,46 @@ data = prepare_data(dataset)
 X = np.array([data['temperature'], data['light'], data['conductivity'], data['moisture']]).T
 y = np.array(data['label'])
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42, stratify=y)
+
+
+### Chart
+# before SMOTE
+counter_before = Counter(y_train)
+classes = list(counter_before.keys())
+counts_before = list(counter_before.values())
+### Chart
+
 
 # Balance the dataset
 smote = SMOTE(random_state=42)
 X_train_balanced, y_train_balanced = smote.fit_resample(X_train, y_train)
+
+
+### Chart
+# after SMOTE
+counter_after = Counter(y_train_balanced)
+counts_after = list(counter_after.values())
+
+# bar chart
+fig, ax = plt.subplots()
+
+bar_width = 0.35
+index = np.arange(len(classes))
+
+bar1 = ax.bar(index, counts_before, bar_width, label='Before SMOTE')
+bar2 = ax.bar(index + bar_width, counts_after, bar_width, label='After SMOTE')
+
+ax.set_xlabel('Class')
+ax.set_ylabel('Count')
+ax.set_title('Class Distribution Before and After SMOTE')
+ax.set_xticks(index + bar_width / 2)
+ax.set_xticklabels(classes)
+ax.legend()
+
+plt.show()
+### Chart
+
 
 # Initialize and fit scaler on the training data
 scaler = StandardScaler()
@@ -115,8 +156,8 @@ print(classification_report(y_test, y_pred))
 print('\n=========================== DEBUG ===========================')
 
 example_value = {
-    "temperature": 30.2,
-    "light": 244,
+    "temperature": 32.2,
+    "light": 3412,
     "conductivity": 1242,
     "moisture": 12
 }
