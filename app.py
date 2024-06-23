@@ -90,6 +90,14 @@ dataset = get_dataset()
 # Prepare data
 data = prepare_data(dataset)
 
+# Count the occurrences of each label
+label_counts = Counter(data['label'])
+label_names = {0: 'Optimal', 1: 'Caution', 2: 'Extreme'}
+
+# Print the counts for each label
+for label, count in label_counts.items():
+    print(f'{label_names[label]}: {count} datasets')
+
 X = np.array([data['temperature'], data['light'], data['conductivity'], data['moisture']]).T
 y = np.array(data['label'])
 
@@ -98,9 +106,9 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_
 
 ### Chart
 # before SMOTE
-counter_before = Counter(y_train)
-classes = list(counter_before.keys())
-counts_before = list(counter_before.values())
+# counter_before = Counter(y_train)
+# classes = list(counter_before.keys())
+# counts_before = list(counter_before.values())
 ### Chart
 
 
@@ -111,26 +119,28 @@ X_train_balanced, y_train_balanced = smote.fit_resample(X_train, y_train)
 
 ### Chart
 # after SMOTE
-counter_after = Counter(y_train_balanced)
-counts_after = list(counter_after.values())
+# counter_after = Counter(y_train_balanced)
+# counts_after = list(counter_after.values())
+### Chart
 
+
+### Chart
 # bar chart
-fig, ax = plt.subplots()
+# fig, ax = plt.subplots()
+# bar_width = 0.35
+# index = np.arange(len(classes))
 
-bar_width = 0.35
-index = np.arange(len(classes))
+# bar1 = ax.bar(index, counts_before, bar_width, label='Before SMOTE')
+# bar2 = ax.bar(index + bar_width, counts_after, bar_width, label='After SMOTE')
 
-bar1 = ax.bar(index, counts_before, bar_width, label='Before SMOTE')
-bar2 = ax.bar(index + bar_width, counts_after, bar_width, label='After SMOTE')
+# ax.set_xlabel('Class')
+# ax.set_ylabel('Count')
+# ax.set_title('Class Distribution Before and After SMOTE')
+# ax.set_xticks(index + bar_width / 2)
+# ax.set_xticklabels(classes)
+# ax.legend()
 
-ax.set_xlabel('Class')
-ax.set_ylabel('Count')
-ax.set_title('Class Distribution Before and After SMOTE')
-ax.set_xticks(index + bar_width / 2)
-ax.set_xticklabels(classes)
-ax.legend()
-
-plt.show()
+# plt.show()
 ### Chart
 
 
@@ -168,6 +178,7 @@ example_scaled = scaler.transform(example_features)
 example_prediction = rf_model.predict(example_scaled)
 example_prediction_proba = rf_model.predict_proba(example_scaled)
 
+print(f'Example features: {example_value}')
 print(f'Scaled example features: {example_scaled}')
 print(f'Example prediction: {example_prediction}')
 print(f'Example prediction probabilities: {example_prediction_proba}')
