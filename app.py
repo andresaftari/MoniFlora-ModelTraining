@@ -9,6 +9,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report
 from sklearn.preprocessing import StandardScaler
 from imblearn.over_sampling import SMOTE
+import matplotlib.pyplot as plt
 from collections import Counter
 
 app = Flask('moniflora')
@@ -77,22 +78,19 @@ def prepare_data(dataset):
 
 def train_random_forest(X_train, y_train):
     # Define parameter grid for GridSearchCV
-    # param_grid = {
-    #     'n_estimators': [50, 100, 200],
-    #     'max_depth': [None, 10, 20, 30],
-    #     'min_samples_split': [2, 5, 10],
-    #     'min_samples_leaf': [1, 2, 4],
-    #     'max_features': ['auto', 'sqrt', 'log2']
-    # }
-    
-    # Initialized
-    # forest = RandomForestClassifier()
-    
-    # grid_search = GridSearchCV(estimator=forest, param_grid=param_grid, n_jobs=-1)
-    # grid_search.fit(X_train, y_train)
+    param_grid = {
+        'n_estimators': [50, 100, 200],
+        'max_depth': [None, 10, 20, 30],
+        'min_samples_split': [2, 5, 10],
+        'min_samples_leaf': [1, 2, 4],
+        'max_features': ['sqrt', 'log2']
+    }
+        
+    grid_search = GridSearchCV(estimator=RandomForestClassifier(), param_grid=param_grid, n_jobs=-1)
+    grid_search.fit(X_train, y_train)
 
     # best_params = grid_search.best_params_
-    forest = RandomForestClassifier(n_estimators=50, random_state=13, max_features='log2')
+    forest = RandomForestClassifier(**grid_search.best_params_)
     forest.fit(X_train, y_train)
     # print(f'Best parameters: {best_params}')
 
@@ -117,7 +115,7 @@ for label, count in label_counts.items():
 X = np.array([data['temperature'], data['light'], data['conductivity'], data['moisture']]).T
 y = np.array(data['label'])
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=13, stratify=y)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=12, stratify=y)
 
 
 ### Chart
@@ -170,20 +168,20 @@ rf_model = train_random_forest(X_train_scaled, y_train_balanced)
 
 
 ### Learning Curves Chart
-# train_sizes, train_scores, test_scores = learning_curve(rf_model, X_train_scaled, y_train_balanced, cv=5, n_jobs=-1, train_sizes=np.linspace(0.1, 1.0, 10))
+train_sizes, train_scores, test_scores = learning_curve(rf_model, X_train_scaled, y_train_balanced, cv=5, n_jobs=-1, train_sizes=np.linspace(0.1, 1.0, 10))
 
-# train_scores_mean = np.mean(train_scores, axis=1)
-# test_scores_mean = np.mean(test_scores, axis=1)
+train_scores_mean = np.mean(train_scores, axis=1)
+test_scores_mean = np.mean(test_scores, axis=1)
 
-# plt.figure()
-# plt.plot(train_sizes, train_scores_mean, label="Training score", color="r")
-# plt.plot(train_sizes, test_scores_mean, label="Cross-validation score", color="g")
-# plt.title("Learning Curves")
-# plt.xlabel("Training examples")
-# plt.ylabel("Score")
-# plt.legend(loc="best")
-# plt.grid()
-# plt.show()
+plt.figure()
+plt.plot(train_sizes, train_scores_mean, label="Training score", color="r")
+plt.plot(train_sizes, test_scores_mean, label="Cross-validation score", color="g")
+plt.title("Learning Curves")
+plt.xlabel("Training examples")
+plt.ylabel("Score")
+plt.legend(loc="best")
+plt.grid()
+plt.show()
 ### Learning Curves Chart
 
 
@@ -201,10 +199,10 @@ print(classification_report(y_test, y_pred, digits=4))
 print('\n=========================== DEBUG ===========================')
 
 example_value = {
-    "temperature": 26.1,
-    "light": 3712,
-    "conductivity": 1921,
-    "moisture": 32
+    "temperature": 26.2, 
+    "light": 1231, 
+    "conductivity": 1223, 
+    "moisture": 12 
 }
 
 # Scale example_value and make a prediction
