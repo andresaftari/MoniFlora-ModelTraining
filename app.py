@@ -15,16 +15,16 @@ from collections import Counter
 app = Flask('moniflora')
 
 def initialize_firebase():
-    cred = credentials.Certificate('/Users/andresaftari/Development/Kuliah/skripsyit-training/moniflora-7d3a3-firebase-adminsdk-xtibx-b38ec6e08d.json')
+    cred = credentials.Certificate('/Users/andresaftari/Development/Kuliah/skripsyit-training/moniflora-backup-firebase-adminsdk-uh66r-b9af29113e.json')
     firebase_admin.initialize_app(cred, {
-        'databaseURL': 'https://moniflora-7d3a3-default-rtdb.firebaseio.com/'
+        'databaseURL': 'https://moniflora-backup-default-rtdb.firebaseio.com/'
     })
-
+    
 
 def get_dataset():
     ref = db.reference('sensor')
     
-    query = ref.order_by_child('light').start_at(600)
+    query = ref.order_by_child('light').start_at(600).limit_to_last(2000)
     results = query.get()
 
     if results:
@@ -48,7 +48,7 @@ def determine_label(value):
     if (22 <= temp <= 27 and 3500 <= light <= 5600 and 1500 <= ec <= 2500 and 35 <= moisture <= 50):
         return 0  # Optimal
 
-    if ((20 <= temp < 22 or 27 <= temp <= 30) or
+    if ((20 <= temp < 22 or 27 < temp <= 30) or
         (1500 <= light < 3500 or 5600 < light <= 6000) or
         (950 <= ec < 1500 or 2500 < ec <= 3000) or
         (30 <= moisture < 35 or 50 < moisture <= 60)):
@@ -83,16 +83,16 @@ def train_random_forest(X_train, y_train):
         'max_depth': [None, 10, 20, 30],
         'min_samples_split': [2, 5, 10],
         'min_samples_leaf': [1, 2, 4],
-        'max_features': ['sqrt', 'log2']
+        'max_features': ['sqrt', 'log2'],
     }
         
     grid_search = GridSearchCV(estimator=RandomForestClassifier(), param_grid=param_grid, n_jobs=-1)
     grid_search.fit(X_train, y_train)
 
-    # best_params = grid_search.best_params_
-    forest = RandomForestClassifier(**grid_search.best_params_)
+    best_params = grid_search.best_params_
+    forest = RandomForestClassifier(**grid_search.best_params_, random_state=13)
     forest.fit(X_train, y_train)
-    # print(f'Best parameters: {best_params}')
+    print(f'Best parameters: {best_params}')
 
     return forest
 
@@ -115,46 +115,46 @@ for label, count in label_counts.items():
 X = np.array([data['temperature'], data['light'], data['conductivity'], data['moisture']]).T
 y = np.array(data['label'])
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=12, stratify=y)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.35, random_state=13, stratify=y)
 
 
 ### Chart
 # before SMOTE
-# counter_before = Counter(y_train)
-# classes = list(counter_before.keys())
-# counts_before = list(counter_before.values())
+counter_before = Counter(y_train)
+classes = list(counter_before.keys())
+counts_before = list(counter_before.values())
 ### Chart
 
 
 # Balance the dataset
-smote = SMOTE(random_state=42)
+smote = SMOTE(random_state=13, k_neighbors=3)
 X_train_balanced, y_train_balanced = smote.fit_resample(X_train, y_train)
 
 
 ### Chart
 # after SMOTE
-# counter_after = Counter(y_train_balanced)
-# counts_after = list(counter_after.values())
+counter_after = Counter(y_train_balanced)
+counts_after = list(counter_after.values())
 ### Chart
 
 
 ### Chart
 # bar chart
-# fig, ax = plt.subplots()
-# bar_width = 0.35
-# index = np.arange(len(classes))
+fig, ax = plt.subplots()
+bar_width = 0.35
+index = np.arange(len(classes))
 
-# bar1 = ax.bar(index, counts_before, bar_width, label='Before SMOTE')
-# bar2 = ax.bar(index + bar_width, counts_after, bar_width, label='After SMOTE')
+bar1 = ax.bar(index, counts_before, bar_width, label='Before SMOTE')
+bar2 = ax.bar(index + bar_width, counts_after, bar_width, label='After SMOTE')
 
-# ax.set_xlabel('Class')
-# ax.set_ylabel('Count')
-# ax.set_title('Class Distribution Before and After SMOTE')
-# ax.set_xticks(index + bar_width / 2)
-# ax.set_xticklabels(classes)
-# ax.legend()
+ax.set_xlabel('Class')
+ax.set_ylabel('Count')
+ax.set_title('Class Distribution Before and After SMOTE')
+ax.set_xticks(index + bar_width / 2)
+ax.set_xticklabels(classes)
+ax.legend()
 
-# plt.show()
+plt.show()
 ### Chart
 
 
@@ -168,7 +168,7 @@ rf_model = train_random_forest(X_train_scaled, y_train_balanced)
 
 
 ### Learning Curves Chart
-train_sizes, train_scores, test_scores = learning_curve(rf_model, X_train_scaled, y_train_balanced, cv=5, n_jobs=-1, train_sizes=np.linspace(0.1, 1.0, 10))
+train_sizes, train_scores, test_scores = learning_curve(rf_model, X_train_scaled, y_train_balanced, n_jobs=-1, train_sizes=np.linspace(0.1, 1.0, 10))
 
 train_scores_mean = np.mean(train_scores, axis=1)
 test_scores_mean = np.mean(test_scores, axis=1)
@@ -194,42 +194,43 @@ print(f'Random Forest Score: {score}')
 print(f'Random Forest Cross Validation Score: {validator}')
 
 y_pred = rf_model.predict(X_test_scaled)
+# print(y_pred)
 print(classification_report(y_test, y_pred, digits=4))
 
-print('\n=========================== DEBUG ===========================')
+# print('\n=========================== DEBUG ===========================')
 
-example_value = {
-    "temperature": 26.2, 
-    "light": 1231, 
-    "conductivity": 1223, 
-    "moisture": 12 
-}
+# example_value = {
+#     "temperature": 26.2, 
+#     "light": 3529, 
+#     "conductivity": 1223, 
+#     "moisture": 12 
+# }
 
-# Scale example_value and make a prediction
-example_features = np.array([[example_value['temperature'], example_value['light'], example_value['conductivity'], example_value['moisture']]])
-example_scaled = scaler.transform(example_features)
-example_prediction = rf_model.predict(example_scaled)
-example_prediction_proba = rf_model.predict_proba(example_scaled)
+# # Scale example_value and make a prediction
+# example_features = np.array([[example_value['temperature'], example_value['light'], example_value['conductivity'], example_value['moisture']]])
+# example_scaled = scaler.transform(example_features)
+# example_prediction = rf_model.predict(example_scaled)
+# example_prediction_proba = rf_model.predict_proba(example_scaled)
 
-print(f'Example features: {example_value}')
-print(f'Scaled example features: {example_scaled}')
-print(f'Example prediction: {example_prediction}')
-print(f'Example prediction probabilities: {example_prediction_proba}')
+# print(f'Example features: {example_value}')
+# print(f'Scaled example features: {example_scaled}')
+# print(f'Example prediction: {examp`le_prediction}')
+# print(f'Example prediction probabilities: {example_prediction_proba}')
 
-print('=========================== DEBUG ===========================\n')
+# print('=========================== DEBUG ===========================\n')
 
 # Save the model and scaler
 pickle.dump(rf_model, open('rf_model.pkl', 'wb'))
 pickle.dump(scaler, open('scaler.pkl', 'wb'))
 
-@app.route('/')
-def hello_world():
-    return 'Hello from Flask!'
+# @app.route('/')
+# def hello_world():
+#     return 'Hello from Flask!'
 
 
-@app.route('/predict', methods=['GET'])
-def coba():
-    return 'Coba'
+# @app.route('/predict', methods=['GET'])
+# def coba():
+#     return 'Coba'
 
 
 @app.route('/predict', methods=['POST'])
@@ -276,3 +277,80 @@ def serve_model():
         'prediction_index': pred_label_index,
         'probability': pred_proba[0].tolist()
     })
+    
+
+
+# Temperature membership functions
+# def temperature_cold(x):
+#     return np.maximum(np.minimum((20 - x) / 10, 1), 0)
+# def temperature_moderate(x):
+#     return np.maximum(np.minimum((x - 15) / 10, (35 - x) / 10), 0)
+# def temperature_hot(x):
+#     return np.maximum(np.minimum((x - 30) / 10, 1), 0)
+
+# Light membership functions
+# def light_low(x):
+#     return np.maximum(np.minimum((3000 - x) / 2000, 1), 0)
+# def light_medium(x):
+#     return np.maximum(np.minimum((x - 2500) / 1500, (5500 - x) / 1500), 0)
+# def light_high(x):
+#     return np.maximum(np.minimum((x - 5000) / 2000, 1), 0)
+
+# Conductivity membership functions
+# def conductivity_low(x):
+#     return np.maximum(np.minimum((1500 - x) / 1000, 1), 0)
+# def conductivity_medium(x):
+#     return np.maximum(np.minimum((x - 1000) / 1000, (3000 - x) / 1000), 0)
+# def conductivity_high(x):
+#     return np.maximum(np.minimum((x - 2500) / 1000, 1), 0)
+
+# Moisture membership functions
+# def moisture_dry(x):
+#     return np.maximum(np.minimum((40 - x) / 20, 1), 0)
+# def moisture_moderate(x):
+#     return np.maximum(np.minimum((x - 30) / 20, (70 - x) / 20), 0)
+# def moisture_wet(x):
+#     return np.maximum(np.minimum((x - 60) / 20, 1), 0)
+
+
+# Plot the membership functions
+# x_temp = np.linspace(0, 40, 400)
+# x_light = np.linspace(0, 7000, 400)
+# x_conductivity = np.linspace(0, 4000, 400)
+# x_moisture = np.linspace(0, 100, 400)
+
+# Plot for Temperature and Light
+# fig1, axes1 = plt.subplots(nrows=2, ncols=1, figsize=(12, 6))
+
+# axes1[0].plot(x_temp, temperature_cold(x_temp), label='Cold')
+# axes1[0].plot(x_temp, temperature_moderate(x_temp), label='Moderate')
+# axes1[0].plot(x_temp, temperature_hot(x_temp), label='Hot')
+# axes1[0].set_title('Temperature')
+# axes1[0].legend()
+
+# axes1[1].plot(x_light, light_low(x_light), label='Low')
+# axes1[1].plot(x_light, light_medium(x_light), label='Medium')
+# axes1[1].plot(x_light, light_high(x_light), label='High')
+# axes1[1].set_title('Light')
+# axes1[1].legend()
+
+# plt.tight_layout()
+# plt.show()
+
+# Plot for Conductivity (EC) and Moisture
+# fig2, axes2 = plt.subplots(nrows=2, ncols=1, figsize=(12, 6))
+
+# axes2[0].plot(x_conductivity, conductivity_low(x_conductivity), label='Low')
+# axes2[0].plot(x_conductivity, conductivity_medium(x_conductivity), label='Medium')
+# axes2[0].plot(x_conductivity, conductivity_high(x_conductivity), label='High')
+# axes2[0].set_title('Conductivity (EC)')
+# axes2[0].legend()
+
+# axes2[1].plot(x_moisture, moisture_dry(x_moisture), label='Dry')
+# axes2[1].plot(x_moisture, moisture_moderate(x_moisture), label='Moderate')
+# axes2[1].plot(x_moisture, moisture_wet(x_moisture), label='Wet')
+# axes2[1].set_title('Moisture')
+# axes2[1].legend()
+
+# plt.tight_layout()
+# plt.show()
