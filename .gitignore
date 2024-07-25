@@ -6,5 +6,8 @@ moniflora-7d3a3-default-rtdb-export-5.json
 __pycache__
 /carbon stock.xlsx
 coba.py
-/rf_model.pkl
-/scaler.pkl
+rf_model.pkl
+scaler.pkl
+api_test.py
+model_itself.py
+bruh.py
