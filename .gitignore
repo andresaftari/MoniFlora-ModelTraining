@@ -1,8 +1,10 @@
 # MacOS Related
 .DS_Store
+# Firebase
 moniflora-7d3a3-firebase-adminsdk-xtibx-b38ec6e08d.json
 moniflora-backup-firebase-adminsdk-uh66r-b9af29113e.json
 moniflora-7d3a3-default-rtdb-export-5.json
+# Other
 __pycache__
 /carbon stock.xlsx
 coba.py
