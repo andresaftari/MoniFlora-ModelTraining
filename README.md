@@ -1,2 +1,2 @@
 # Random Forest - Fuzzy Model
-## Hypertuned with SMOTE
+## Hypertuned with SMOTE, Stratified K-Fold
