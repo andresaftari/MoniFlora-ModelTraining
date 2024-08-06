@@ -4,6 +4,10 @@
 moniflora-7d3a3-firebase-adminsdk-xtibx-b38ec6e08d.json
 moniflora-backup-firebase-adminsdk-uh66r-b9af29113e.json
 moniflora-7d3a3-default-rtdb-export-5.json
+
+# CSV
+moniflora-backup-rtdb.csv
+
 # Other
 __pycache__
 /carbon stock.xlsx
@@ -12,4 +16,6 @@ rf_model.pkl
 scaler.pkl
 api_test.py
 model_itself.py
+carbon_stock.py
 bruh.py
+converter_firebase_json.py
